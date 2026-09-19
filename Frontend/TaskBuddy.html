@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskBuddy</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="dashboard-body">
+
+  <!-- Navigation Bar -->
+  <header class="navbar">
+    <div class="logo">TaskBuddy 📝</div>
+    <div class="user-controls">
+      <span id="user-display">Welcome, User</span>
+      <button class="btn-logout" onclick="logout()">Logout</button>
+    </div>
+  </header>
+
+  <main class="dashboard-container">
+    
+    <!-- Controls Section: Task Creator & Filters -->
+    <section class="controls-panel">
+      <!-- Search Bar -->
+      <input type="text" id="search-input" placeholder="Search tasks..." oninput="renderTasks()">
+
+      <!-- Filter Option Bar -->
+      <div class="filter-bar">
+        <button class="filter-btn active" data-filter="all" onclick="setFilter('all', this)">All</button>
+        <button class="filter-btn" data-filter="pending" onclick="setFilter('pending', this)">Pending</button>
+        <button class="filter-btn" data-filter="completed" onclick="setFilter('completed', this)">Completed</button>
+      </div>
+
+      <!-- Add Task Button -->
+      <button class="btn-primary" onclick="openTaskModal()">+ New Task</button>
+    </section>
+
+    <!-- Task List Grid -->
+    <section id="task-list" class="task-grid">
+      <!-- Tasks rendered dynamically via JavaScript -->
+    </section>
+  </main>
+
+  <!-- Create/Edit Task Modal -->
+  <div id="task-modal" class="modal hidden">
+    <div class="modal-content">
+      <h3 id="modal-title">Create New Task</h3>
+      <form id="task-form" onsubmit="saveTask(event)">
+        <input type="hidden" id="task-id">
+        
+        <div class="form-group">
+          <label for="task-title">Title</label>
+          <input type="text" id="task-title" required placeholder="e.g. Complete Project Proposal">
+        </div>
+
+        <div class="form-group">
+          <label for="task-desc">Description</label>
+          <textarea id="task-desc" rows="3" placeholder="Task details..."></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="task-due">Due Date</label>
+            <input type="date" id="task-due" required>
+          </div>
+
+          <div class="form-group">
+            <label for="task-priority">Priority</label>
+            <select id="task-priority">
+              <option value="low">Low</option>
+              <option value="medium" selected>Medium</option>
+              <option value="high">High</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn-secondary" onclick="closeTaskModal()">Cancel</button>
+          <button type="submit" class="btn-primary">Save Task</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="javascript.js"></script>
+</body>
+</html>

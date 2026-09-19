@@ -1,0 +1,4 @@
+node_modules/
+Backend/taskbuddy.db
+Backend/data.json
+.DS_Store

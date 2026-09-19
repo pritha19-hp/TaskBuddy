@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskBuddy</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="auth-body">
+
+  <div class="auth-card">
+    <h1 class="logo">TaskBuddy 📝</h1>
+    
+    <!-- Option Choosing Bar for Switching Login / Signup -->
+    <div class="auth-toggle-bar">
+      <button id="tab-login" class="toggle-btn active" onclick="switchTab('login')">Login</button>
+      <button id="tab-signup" class="toggle-btn" onclick="switchTab('signup')">Sign Up</button>
+    </div>
+
+    <!-- Login Form -->
+    <form id="login-form" class="auth-form" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email" placeholder="user@example.com" required>
+      </div>
+
+      <div class="form-group">
+        <label for="login-password">Password</label>
+        <input type="password" id="login-password" placeholder="Enter password" required>
+      </div>
+
+      <div class="form-options">
+        <a href="#" class="forgot-link">Forgot Password?</a>
+      </div>
+
+      <button type="submit" class="btn-primary">Sign In</button>
+    </form>
+
+    <!-- Signup Form -->
+    <form id="signup-form" class="auth-form hidden" onsubmit="handleSignup(event)">
+      <div class="form-group">
+        <label for="signup-name">Full Name</label>
+        <input type="text" id="signup-name" placeholder="John Doe" required>
+      </div>
+
+      <div class="form-group">
+        <label for="signup-email">Email</label>
+        <input type="email" id="signup-email" placeholder="user@example.com" required>
+      </div>
+
+      <div class="form-group">
+        <label for="signup-password">Password</label>
+        <input type="password" id="signup-password" placeholder="Create password" required>
+      </div>
+
+      <button type="submit" class="btn-primary">Create Account</button>
+    </form>
+  </div>
+
+  <script src="javascript.js"></script>
+</body>
+</html>
