@@ -55,4 +55,4 @@ TaskBuddy/
     ├── style.css
     └── javascript.js
 
-    Live Link :- [TaskBuddy Live Link](https://pritha19-hp.github.io/TaskBuddy/Frontend/LoginSignup.html)
+    Live Link :- https://pritha19-hp.github.io/TaskBuddy/Frontend/LoginSignup.html
