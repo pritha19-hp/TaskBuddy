@@ -1,4 +1,4 @@
-const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+const API_URL = (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') && window.location.port === '3000'
   ? `${window.location.origin}/api` 
   : null;
 
@@ -30,26 +30,30 @@ function switchTab(tab) {
   const tabSignup = document.getElementById('tab-signup');
 
   if (tab === 'login') {
-    loginForm.classList.remove('hidden');
-    signupForm.classList.add('hidden');
-    tabLogin.classList.add('active');
-    tabSignup.classList.remove('active');
+    if (loginForm) loginForm.classList.remove('hidden');
+    if (signupForm) signupForm.classList.add('hidden');
+    if (tabLogin) tabLogin.classList.add('active');
+    if (tabSignup) tabSignup.classList.remove('active');
   } else {
-    signupForm.classList.remove('hidden');
-    loginForm.classList.add('hidden');
-    tabSignup.classList.add('active');
-    tabLogin.classList.remove('active');
+    if (signupForm) signupForm.classList.remove('hidden');
+    if (loginForm) loginForm.classList.add('hidden');
+    if (tabSignup) tabSignup.classList.add('active');
+    if (tabLogin) tabLogin.classList.remove('active');
   }
 }
 
 async function handleSignup(e) {
   e.preventDefault();
-  const name = document.getElementById('signup-name').value.trim();
-  const email = document.getElementById('signup-email').value.trim();
-  const password = document.getElementById('signup-password').value;
+  const name = document.getElementById('signup-name')?.value.trim() || '';
+  const email = document.getElementById('signup-email')?.value.trim() || '';
+  const password = document.getElementById('signup-password')?.value || '';
+
+  if (!email || !password) {
+    alert('Please enter your email and password');
+    return;
+  }
 
   if (API_URL) {
-    // Backend API Mode
     try {
       const res = await fetch(`${API_URL}/auth/signup`, {
         method: 'POST',
@@ -66,14 +70,14 @@ async function handleSignup(e) {
       alert(err.message);
     }
   } else {
-    // Standalone Web Mode (GitHub Pages fallback for remote testers)
+    // Standalone Web Mode for GitHub Pages
     const users = JSON.parse(localStorage.getItem('tb_users') || '[]');
     if (users.some(u => u.email === email)) {
       alert('Email already registered!');
       return;
     }
 
-    const newUser = { id: Date.now(), name, email };
+    const newUser = { id: Date.now(), name: name || 'User', email };
     users.push({ ...newUser, password });
     localStorage.setItem('tb_users', JSON.stringify(users));
     localStorage.setItem('tb_token', 'demo_token_' + Date.now());
@@ -84,11 +88,15 @@ async function handleSignup(e) {
 
 async function handleLogin(e) {
   e.preventDefault();
-  const email = document.getElementById('login-email').value.trim();
-  const password = document.getElementById('login-password').value;
+  const email = document.getElementById('login-email')?.value.trim() || '';
+  const password = document.getElementById('login-password')?.value || '';
+
+  if (!email || !password) {
+    alert('Please enter your email and password');
+    return;
+  }
 
   if (API_URL) {
-    // Backend API Mode
     try {
       const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
@@ -105,7 +113,7 @@ async function handleLogin(e) {
       alert(err.message);
     }
   } else {
-    // Standalone Web Mode (GitHub Pages fallback for remote testers)
+    // Standalone Web Mode for GitHub Pages
     const users = JSON.parse(localStorage.getItem('tb_users') || '[]');
     const user = users.find(u => u.email === email && u.password === password);
     if (!user) {
@@ -149,7 +157,7 @@ async function fetchTasks() {
       console.error('Failed to fetch tasks:', err);
     }
   } else {
-    // Standalone Web Mode
+    // Standalone Web Mode for GitHub Pages
     const user = JSON.parse(localStorage.getItem('tb_user') || '{}');
     const allTasks = JSON.parse(localStorage.getItem('tb_tasks') || '[]');
     tasksCache = allTasks.filter(t => t.userId === user.id);
@@ -158,7 +166,7 @@ async function fetchTasks() {
 }
 
 function isOverdue(dueDateStr, completed) {
-  if (completed) return false;
+  if (completed || !dueDateStr) return false;
   const today = new Date().toISOString().split('T')[0];
   return dueDateStr < today;
 }
@@ -197,15 +205,15 @@ function renderTasks() {
         <div>
           <div class="task-header">
             <div class="task-badges">
-              <span class="priority-badge priority-${task.priority}">${task.priority}</span>
+              <span class="priority-badge priority-${task.priority || 'medium'}">${task.priority || 'medium'}</span>
               <span class="category-badge ${catClass}">${task.category || 'Personal'}</span>
             </div>
             <small style="color: ${overdue ? '#e53e3e' : 'inherit'}; font-weight: ${overdue ? 'bold' : 'normal'};">
-              Due: ${task.due}
+              Due: ${task.due || 'N/A'}
             </small>
           </div>
           <h4>${task.title}</h4>
-          <p style="font-size: 14px; color: var(--text-muted); margin-top: 6px;">${task.desc || ''}</p>
+          <p style="font-size: 14px; color: var(--text-muted, #555); margin-top: 6px;">${task.desc || ''}</p>
           ${overdue ? '<div class="overdue-tag">⚠️ Overdue Task</div>' : ''}
         </div>
         <div class="task-actions">
@@ -221,44 +229,62 @@ function renderTasks() {
 }
 
 function openTaskModal() {
-  document.getElementById('task-id').value = '';
-  document.getElementById('modal-title').innerText = 'Create New Task';
-  document.getElementById('modal-submit-btn').innerText = 'Save Task';
-  document.getElementById('task-form').reset();
-  document.getElementById('task-modal').classList.remove('hidden');
+  const taskIdEl = document.getElementById('task-id');
+  const titleEl = document.getElementById('modal-title');
+  const submitBtnEl = document.getElementById('modal-submit-btn');
+  const formEl = document.getElementById('task-form');
+  const modalEl = document.getElementById('task-modal');
+
+  if (taskIdEl) taskIdEl.value = '';
+  if (titleEl) titleEl.innerText = 'Create New Task';
+  if (submitBtnEl) submitBtnEl.innerText = 'Save Task';
+  if (formEl) formEl.reset();
+  if (modalEl) modalEl.classList.remove('hidden');
 }
 
 function editTask(id) {
-  const task = tasksCache.find(t => t.id === id);
+  const task = tasksCache.find(t => t.id == id);
   if (!task) return;
 
-  document.getElementById('task-id').value = task.id;
-  document.getElementById('modal-title').innerText = 'Edit Task';
-  document.getElementById('modal-submit-btn').innerText = 'Update Task';
+  const taskIdEl = document.getElementById('task-id');
+  const titleEl = document.getElementById('modal-title');
+  const submitBtnEl = document.getElementById('modal-submit-btn');
   
-  document.getElementById('task-title').value = task.title;
-  document.getElementById('task-desc').value = task.desc || '';
-  document.getElementById('task-due').value = task.due;
-  document.getElementById('task-category').value = task.category || 'Personal';
-  document.getElementById('task-priority').value = task.priority;
+  if (taskIdEl) taskIdEl.value = task.id;
+  if (titleEl) titleEl.innerText = 'Edit Task';
+  if (submitBtnEl) submitBtnEl.innerText = 'Update Task';
+  
+  if (document.getElementById('task-title')) document.getElementById('task-title').value = task.title;
+  if (document.getElementById('task-desc')) document.getElementById('task-desc').value = task.desc || '';
+  if (document.getElementById('task-due')) document.getElementById('task-due').value = task.due || '';
+  if (document.getElementById('task-category')) document.getElementById('task-category').value = task.category || 'Personal';
+  if (document.getElementById('task-priority')) document.getElementById('task-priority').value = task.priority || 'medium';
 
-  document.getElementById('task-modal').classList.remove('hidden');
+  const modalEl = document.getElementById('task-modal');
+  if (modalEl) modalEl.classList.remove('hidden');
 }
 
 function closeTaskModal() {
-  document.getElementById('task-form').reset();
-  document.getElementById('task-modal').classList.add('hidden');
+  const formEl = document.getElementById('task-form');
+  const modalEl = document.getElementById('task-modal');
+  if (formEl) formEl.reset();
+  if (modalEl) modalEl.classList.add('hidden');
 }
 
 async function saveTask(e) {
   e.preventDefault();
   const token = getToken();
-  const taskId = document.getElementById('task-id').value;
-  const title = document.getElementById('task-title').value.trim();
-  const desc = document.getElementById('task-desc').value.trim();
-  const due = document.getElementById('task-due').value;
-  const category = document.getElementById('task-category').value;
-  const priority = document.getElementById('task-priority').value;
+  const taskId = document.getElementById('task-id')?.value || '';
+  const title = document.getElementById('task-title')?.value.trim() || '';
+  const desc = document.getElementById('task-desc')?.value.trim() || '';
+  const due = document.getElementById('task-due')?.value || '';
+  const category = document.getElementById('task-category')?.value || 'Personal';
+  const priority = document.getElementById('task-priority')?.value || 'medium';
+
+  if (!title) {
+    alert('Please enter a task title.');
+    return;
+  }
 
   if (API_URL) {
     const method = taskId ? 'PUT' : 'POST';
@@ -280,7 +306,7 @@ async function saveTask(e) {
       alert(err.message);
     }
   } else {
-    // Standalone Web Mode
+    // Standalone Web Mode for GitHub Pages
     const user = JSON.parse(localStorage.getItem('tb_user') || '{}');
     let allTasks = JSON.parse(localStorage.getItem('tb_tasks') || '[]');
 
@@ -350,7 +376,7 @@ async function deleteTask(id) {
 function setFilter(filter, element) {
   currentFilter = filter;
   document.querySelectorAll('.filter-btn').forEach(btn => btn.classList.remove('active'));
-  element.classList.add('active');
+  if (element) element.classList.add('active');
   renderTasks();
 }
 
@@ -364,7 +390,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!token || !user) {
       window.location.href = 'LoginSignup.html';
     } else {
-      document.getElementById('user-display').innerText = `Welcome, ${user.name}`;
+      const userDisplay = document.getElementById('user-display');
+      if (userDisplay) userDisplay.innerText = `Welcome, ${user.name}`;
       fetchTasks();
     }
   }
