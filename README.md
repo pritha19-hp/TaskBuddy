@@ -37,6 +37,7 @@ This is my **2nd project as part of the Thiranex internship**, where I worked on
 
 ## Project Structure
 
+```text
 TaskBuddy/
 │
 ├── index.html
@@ -52,7 +53,7 @@ TaskBuddy/
     ├── TaskBuddy.html
     ├── style.css
     └── javascript.js
-
+```
 
 # Live Link :-
 [TaskBuddy Live Link](https://pritha19-hp.github.io/TaskBuddy/)
