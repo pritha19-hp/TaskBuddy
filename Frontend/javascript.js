@@ -1,10 +1,28 @@
+const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+  ? `${window.location.origin}/api` 
+  : null;
 
-// Global Configuration & State
-const API_URL = 'http://localhost:3000/api';
 let currentFilter = 'all';
 let tasksCache = [];
 
-// --- AUTHENTICATION & TAB SWITCHING ---
+// --- DARK MODE TOGGLE ---
+function toggleDarkMode() {
+  const isDark = document.body.classList.toggle('dark-mode');
+  localStorage.setItem('tb_theme', isDark ? 'dark' : 'light');
+  const themeBtn = document.getElementById('theme-btn');
+  if (themeBtn) themeBtn.innerText = isDark ? '☀️ Light Mode' : '🌙 Dark Mode';
+}
+
+function initTheme() {
+  const savedTheme = localStorage.getItem('tb_theme');
+  if (savedTheme === 'dark') {
+    document.body.classList.add('dark-mode');
+    const themeBtn = document.getElementById('theme-btn');
+    if (themeBtn) themeBtn.innerText = '☀️ Light Mode';
+  }
+}
+
+// --- AUTHENTICATION ---
 function switchTab(tab) {
   const loginForm = document.getElementById('login-form');
   const signupForm = document.getElementById('signup-form');
@@ -30,21 +48,37 @@ async function handleSignup(e) {
   const email = document.getElementById('signup-email').value.trim();
   const password = document.getElementById('signup-password').value;
 
-  try {
-    const res = await fetch(`${API_URL}/auth/signup`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, password })
-    });
+  if (API_URL) {
+    // Backend API Mode
+    try {
+      const res = await fetch(`${API_URL}/auth/signup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message);
+      localStorage.setItem('tb_token', data.token);
+      localStorage.setItem('tb_user', JSON.stringify(data.user));
+      window.location.href = 'TaskBuddy.html';
+    } catch (err) {
+      alert(err.message);
+    }
+  } else {
+    // Standalone Web Mode (GitHub Pages fallback for remote testers)
+    const users = JSON.parse(localStorage.getItem('tb_users') || '[]');
+    if (users.some(u => u.email === email)) {
+      alert('Email already registered!');
+      return;
+    }
 
-    localStorage.setItem('tb_token', data.token);
-    localStorage.setItem('tb_user', JSON.stringify(data.user));
+    const newUser = { id: Date.now(), name, email };
+    users.push({ ...newUser, password });
+    localStorage.setItem('tb_users', JSON.stringify(users));
+    localStorage.setItem('tb_token', 'demo_token_' + Date.now());
+    localStorage.setItem('tb_user', JSON.stringify(newUser));
     window.location.href = 'TaskBuddy.html';
-  } catch (err) {
-    alert(err.message);
   }
 }
 
@@ -53,21 +87,35 @@ async function handleLogin(e) {
   const email = document.getElementById('login-email').value.trim();
   const password = document.getElementById('login-password').value;
 
-  try {
-    const res = await fetch(`${API_URL}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
+  if (API_URL) {
+    // Backend API Mode
+    try {
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message);
 
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message);
+      localStorage.setItem('tb_token', data.token);
+      localStorage.setItem('tb_user', JSON.stringify(data.user));
+      window.location.href = 'TaskBuddy.html';
+    } catch (err) {
+      alert(err.message);
+    }
+  } else {
+    // Standalone Web Mode (GitHub Pages fallback for remote testers)
+    const users = JSON.parse(localStorage.getItem('tb_users') || '[]');
+    const user = users.find(u => u.email === email && u.password === password);
+    if (!user) {
+      alert('Invalid email or password!');
+      return;
+    }
 
-    localStorage.setItem('tb_token', data.token);
-    localStorage.setItem('tb_user', JSON.stringify(data.user));
+    localStorage.setItem('tb_token', 'demo_token_' + Date.now());
+    localStorage.setItem('tb_user', JSON.stringify({ id: user.id, name: user.name, email: user.email }));
     window.location.href = 'TaskBuddy.html';
-  } catch (err) {
-    alert(err.message);
   }
 }
 
@@ -86,21 +134,33 @@ async function fetchTasks() {
   const token = getToken();
   if (!token) return;
 
-  try {
-    const res = await fetch(`${API_URL}/tasks`, {
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-
-    if (res.status === 401 || res.status === 403) {
-      logout();
-      return;
+  if (API_URL) {
+    try {
+      const res = await fetch(`${API_URL}/tasks`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.status === 401 || res.status === 403) {
+        logout();
+        return;
+      }
+      tasksCache = await res.json();
+      renderTasks();
+    } catch (err) {
+      console.error('Failed to fetch tasks:', err);
     }
-
-    tasksCache = await res.json();
+  } else {
+    // Standalone Web Mode
+    const user = JSON.parse(localStorage.getItem('tb_user') || '{}');
+    const allTasks = JSON.parse(localStorage.getItem('tb_tasks') || '[]');
+    tasksCache = allTasks.filter(t => t.userId === user.id);
     renderTasks();
-  } catch (err) {
-    console.error('Failed to fetch tasks:', err);
   }
+}
+
+function isOverdue(dueDateStr, completed) {
+  if (completed) return false;
+  const today = new Date().toISOString().split('T')[0];
+  return dueDateStr < today;
 }
 
 function renderTasks() {
@@ -110,12 +170,15 @@ function renderTasks() {
   const searchQuery = (document.getElementById('search-input')?.value || '').toLowerCase();
 
   const filtered = tasksCache.filter(task => {
+    const taskOverdue = isOverdue(task.due, task.completed);
     const matchesFilter = 
       currentFilter === 'all' ? true :
-      currentFilter === 'completed' ? task.completed : !task.completed;
+      currentFilter === 'completed' ? task.completed :
+      currentFilter === 'pending' ? !task.completed :
+      currentFilter === 'overdue' ? taskOverdue : true;
     
     const matchesSearch = task.title.toLowerCase().includes(searchQuery) ||
-                          task.desc.toLowerCase().includes(searchQuery);
+                          (task.desc || '').toLowerCase().includes(searchQuery);
 
     return matchesFilter && matchesSearch;
   });
@@ -125,91 +188,163 @@ function renderTasks() {
     return;
   }
 
-  taskGrid.innerHTML = filtered.map(task => `
-    <div class="task-card ${task.completed ? 'completed' : ''}">
-      <div class="task-header">
-        <span class="priority-badge priority-${task.priority}">${task.priority}</span>
-        <small>Due: ${task.due}</small>
+  taskGrid.innerHTML = filtered.map(task => {
+    const overdue = isOverdue(task.due, task.completed);
+    const catClass = `cat-${(task.category || 'Personal').toLowerCase()}`;
+
+    return `
+      <div class="task-card ${task.completed ? 'completed' : ''} ${overdue ? 'overdue' : ''}">
+        <div>
+          <div class="task-header">
+            <div class="task-badges">
+              <span class="priority-badge priority-${task.priority}">${task.priority}</span>
+              <span class="category-badge ${catClass}">${task.category || 'Personal'}</span>
+            </div>
+            <small style="color: ${overdue ? '#e53e3e' : 'inherit'}; font-weight: ${overdue ? 'bold' : 'normal'};">
+              Due: ${task.due}
+            </small>
+          </div>
+          <h4>${task.title}</h4>
+          <p style="font-size: 14px; color: var(--text-muted); margin-top: 6px;">${task.desc || ''}</p>
+          ${overdue ? '<div class="overdue-tag">⚠️ Overdue Task</div>' : ''}
+        </div>
+        <div class="task-actions">
+          <button class="btn-complete" onclick="toggleTask(${task.id}, ${task.completed})">
+            ${task.completed ? 'Undo' : 'Complete'}
+          </button>
+          <button class="btn-edit" onclick="editTask(${task.id})">Edit</button>
+          <button class="btn-delete" onclick="deleteTask(${task.id})">Delete</button>
+        </div>
       </div>
-      <h4>${task.title}</h4>
-      <p style="font-size: 14px; color: #555; margin-top: 6px;">${task.desc}</p>
-      <div class="task-actions">
-        <button class="btn-complete" onclick="toggleTask(${task.id}, ${task.completed})">
-          ${task.completed ? 'Undo' : 'Complete'}
-        </button>
-        <button class="btn-delete" onclick="deleteTask(${task.id})">Delete</button>
-      </div>
-    </div>
-  `).join('');
-}
-
-async function saveTask(e) {
-  e.preventDefault();
-  const token = getToken();
-  const title = document.getElementById('task-title').value.trim();
-  const desc = document.getElementById('task-desc').value.trim();
-  const due = document.getElementById('task-due').value;
-  const priority = document.getElementById('task-priority').value;
-
-  try {
-    const res = await fetch(`${API_URL}/tasks`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ title, desc, due, priority })
-    });
-
-    if (!res.ok) throw new Error('Failed to save task');
-
-    closeTaskModal();
-    fetchTasks();
-  } catch (err) {
-    alert(err.message);
-  }
-}
-
-async function toggleTask(id, currentStatus) {
-  const token = getToken();
-  try {
-    await fetch(`${API_URL}/tasks/${id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({ completed: !currentStatus })
-    });
-
-    fetchTasks();
-  } catch (err) {
-    console.error('Failed to toggle task:', err);
-  }
-}
-
-async function deleteTask(id) {
-  if (!confirm('Are you sure you want to delete this task?')) return;
-  const token = getToken();
-  try {
-    await fetch(`${API_URL}/tasks/${id}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${token}` }
-    });
-
-    fetchTasks();
-  } catch (err) {
-    console.error('Failed to delete task:', err);
-  }
+    `;
+  }).join('');
 }
 
 function openTaskModal() {
+  document.getElementById('task-id').value = '';
+  document.getElementById('modal-title').innerText = 'Create New Task';
+  document.getElementById('modal-submit-btn').innerText = 'Save Task';
+  document.getElementById('task-form').reset();
+  document.getElementById('task-modal').classList.remove('hidden');
+}
+
+function editTask(id) {
+  const task = tasksCache.find(t => t.id === id);
+  if (!task) return;
+
+  document.getElementById('task-id').value = task.id;
+  document.getElementById('modal-title').innerText = 'Edit Task';
+  document.getElementById('modal-submit-btn').innerText = 'Update Task';
+  
+  document.getElementById('task-title').value = task.title;
+  document.getElementById('task-desc').value = task.desc || '';
+  document.getElementById('task-due').value = task.due;
+  document.getElementById('task-category').value = task.category || 'Personal';
+  document.getElementById('task-priority').value = task.priority;
+
   document.getElementById('task-modal').classList.remove('hidden');
 }
 
 function closeTaskModal() {
   document.getElementById('task-form').reset();
   document.getElementById('task-modal').classList.add('hidden');
+}
+
+async function saveTask(e) {
+  e.preventDefault();
+  const token = getToken();
+  const taskId = document.getElementById('task-id').value;
+  const title = document.getElementById('task-title').value.trim();
+  const desc = document.getElementById('task-desc').value.trim();
+  const due = document.getElementById('task-due').value;
+  const category = document.getElementById('task-category').value;
+  const priority = document.getElementById('task-priority').value;
+
+  if (API_URL) {
+    const method = taskId ? 'PUT' : 'POST';
+    const url = taskId ? `${API_URL}/tasks/${taskId}` : `${API_URL}/tasks`;
+
+    try {
+      const res = await fetch(url, {
+        method: method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ title, desc, due, category, priority })
+      });
+      if (!res.ok) throw new Error('Failed to save task');
+      closeTaskModal();
+      fetchTasks();
+    } catch (err) {
+      alert(err.message);
+    }
+  } else {
+    // Standalone Web Mode
+    const user = JSON.parse(localStorage.getItem('tb_user') || '{}');
+    let allTasks = JSON.parse(localStorage.getItem('tb_tasks') || '[]');
+
+    if (taskId) {
+      const taskIndex = allTasks.findIndex(t => t.id == taskId);
+      if (taskIndex !== -1) {
+        allTasks[taskIndex] = { ...allTasks[taskIndex], title, desc, due, category, priority };
+      }
+    } else {
+      allTasks.push({ id: Date.now(), userId: user.id, title, desc, due, category, priority, completed: false });
+    }
+
+    localStorage.setItem('tb_tasks', JSON.stringify(allTasks));
+    closeTaskModal();
+    fetchTasks();
+  }
+}
+
+async function toggleTask(id, currentStatus) {
+  const token = getToken();
+  if (API_URL) {
+    try {
+      await fetch(`${API_URL}/tasks/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ completed: !currentStatus })
+      });
+      fetchTasks();
+    } catch (err) {
+      console.error('Failed to toggle task:', err);
+    }
+  } else {
+    let allTasks = JSON.parse(localStorage.getItem('tb_tasks') || '[]');
+    const task = allTasks.find(t => t.id == id);
+    if (task) {
+      task.completed = !currentStatus;
+      localStorage.setItem('tb_tasks', JSON.stringify(allTasks));
+      fetchTasks();
+    }
+  }
+}
+
+async function deleteTask(id) {
+  if (!confirm('Are you sure you want to delete this task?')) return;
+  const token = getToken();
+  if (API_URL) {
+    try {
+      await fetch(`${API_URL}/tasks/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      fetchTasks();
+    } catch (err) {
+      console.error('Failed to delete task:', err);
+    }
+  } else {
+    let allTasks = JSON.parse(localStorage.getItem('tb_tasks') || '[]');
+    allTasks = allTasks.filter(t => t.id != id);
+    localStorage.setItem('tb_tasks', JSON.stringify(allTasks));
+    fetchTasks();
+  }
 }
 
 function setFilter(filter, element) {
@@ -219,8 +354,8 @@ function setFilter(filter, element) {
   renderTasks();
 }
 
-// Page Auth Guard & Initialization
 document.addEventListener('DOMContentLoaded', () => {
+  initTheme();
   const token = getToken();
   const user = JSON.parse(localStorage.getItem('tb_user') || 'null');
   const isDashboard = window.location.pathname.includes('TaskBuddy.html');
