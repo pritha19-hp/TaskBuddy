@@ -20,7 +20,6 @@ const db = new sqlite3.Database(DB_FILE, (err) => {
   }
 });
 
-// Initialize SQL Tables automatically
 function initDatabase() {
   db.serialize(() => {
     db.run(`
@@ -41,11 +40,15 @@ function initDatabase() {
         description TEXT,
         due_date TEXT NOT NULL,
         priority TEXT DEFAULT 'medium',
+        category TEXT DEFAULT 'Personal',
         completed INTEGER DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
-    `);
+    `, () => {
+      // Safely add category column if missing in older DB file
+      db.run(`ALTER TABLE tasks ADD COLUMN category TEXT DEFAULT 'Personal'`, () => {});
+    });
   });
 }
 
@@ -66,7 +69,7 @@ app.get('/TaskBuddy.html', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'TaskBuddy.html'));
 });
 
-// Serve Static Files
+// Serve Static Assets
 app.use(express.static(path.join(__dirname, '..')));
 
 // JWT Auth Middleware
@@ -125,11 +128,11 @@ app.post('/api/auth/login', async (req, res) => {
 // 3. Get User Tasks
 app.get('/api/tasks', authenticateToken, (req, res) => {
   db.all(
-    'SELECT id, title, description AS desc, due_date AS due, priority, completed FROM tasks WHERE user_id = ? ORDER BY id DESC',
+    'SELECT id, title, description AS desc, due_date AS due, priority, category, completed FROM tasks WHERE user_id = ? ORDER BY id DESC',
     [req.user.id],
     (err, rows) => {
       if (err) return res.status(500).json({ message: err.message });
-      const tasks = rows.map(t => ({ ...t, completed: Boolean(t.completed) }));
+      const tasks = (rows || []).map(t => ({ ...t, completed: Boolean(t.completed) }));
       res.json(tasks);
     }
   );
@@ -137,13 +140,24 @@ app.get('/api/tasks', authenticateToken, (req, res) => {
 
 // 4. Create Task
 app.post('/api/tasks', authenticateToken, (req, res) => {
-  const { title, desc, due, priority } = req.body;
+  const { title, desc, due, priority, category } = req.body;
 
   db.run(
-    'INSERT INTO tasks (user_id, title, description, due_date, priority, completed) VALUES (?, ?, ?, ?, ?, ?)',
-    [req.user.id, title, desc, due, priority || 'medium', 0],
+    'INSERT INTO tasks (user_id, title, description, due_date, priority, category, completed) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [req.user.id, title, desc || '', due || '', priority || 'medium', category || 'Personal', 0],
     function(err) {
-      if (err) return res.status(500).json({ message: err.message });
+      if (err) {
+        // Fallback insert without category if column failed
+        db.run(
+          'INSERT INTO tasks (user_id, title, description, due_date, priority, completed) VALUES (?, ?, ?, ?, ?, ?)',
+          [req.user.id, title, desc || '', due || '', priority || 'medium', 0],
+          function(err2) {
+            if (err2) return res.status(500).json({ message: err2.message });
+            res.status(201).json({ id: this.lastID, userId: req.user.id, title, desc, due, priority: priority || 'medium', category: 'Personal', completed: false });
+          }
+        );
+        return;
+      }
 
       res.status(201).json({
         id: this.lastID,
@@ -152,6 +166,7 @@ app.post('/api/tasks', authenticateToken, (req, res) => {
         desc,
         due,
         priority: priority || 'medium',
+        category: category || 'Personal',
         completed: false
       });
     }
@@ -161,7 +176,7 @@ app.post('/api/tasks', authenticateToken, (req, res) => {
 // 5. Update Task
 app.put('/api/tasks/:id', authenticateToken, (req, res) => {
   const taskId = req.params.id;
-  const { title, desc, due, priority, completed } = req.body;
+  const { title, desc, due, priority, category, completed } = req.body;
 
   db.get('SELECT * FROM tasks WHERE id = ? AND user_id = ?', [taskId, req.user.id], (err, task) => {
     if (err) return res.status(500).json({ message: err.message });
@@ -171,6 +186,7 @@ app.put('/api/tasks/:id', authenticateToken, (req, res) => {
     const newDesc = desc !== undefined ? desc : task.description;
     const newDue = due !== undefined ? due : task.due_date;
     const newPriority = priority !== undefined ? priority : task.priority;
+    const newCategory = category !== undefined ? category : (task.category || 'Personal');
     const newCompleted = completed !== undefined ? (completed ? 1 : 0) : task.completed;
 
     db.run(
@@ -178,7 +194,7 @@ app.put('/api/tasks/:id', authenticateToken, (req, res) => {
       [newTitle, newDesc, newDue, newPriority, newCompleted, taskId, req.user.id],
       function(err) {
         if (err) return res.status(500).json({ message: err.message });
-        res.json({ id: taskId, title: newTitle, desc: newDesc, due: newDue, priority: newPriority, completed: Boolean(newCompleted) });
+        res.json({ id: taskId, title: newTitle, desc: newDesc, due: newDue, priority: newPriority, category: newCategory, completed: Boolean(newCompleted) });
       }
     );
   });
@@ -197,6 +213,6 @@ app.delete('/api/tasks/:id', authenticateToken, (req, res) => {
 });
 
 // Start Server
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
